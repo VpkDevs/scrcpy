@@ -23,9 +23,13 @@ phone back to the PC.
 ## Quick start (development)
 
 1. Build the host tool (see [build.md](build.md) and Meson option
-   `compile_duplex_host`).
+   `compile_duplex_host`). On Windows, link **FFmpeg** (`libavcodec`, `libavutil`,
+   `libswscale`) so DXGI capture + H.264 encode are enabled.
 2. Install the Android viewer APK (build from `duplex/reverse-android-view/`).
 3. `adb reverse` the TCP port, start `sc-reverse-host`, then launch the viewer
    on the device pointing at `127.0.0.1` on that port.
+
+The viewer decodes **AVC** into a `SurfaceView` when the host sets the video
+flag in the duplex header (see [duplex-protocol-v1.md](duplex-protocol-v1.md)).
 
 Details evolve with each release; see git tags matching `duplex-baseline-*`.

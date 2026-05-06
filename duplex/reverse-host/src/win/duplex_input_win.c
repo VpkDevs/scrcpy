@@ -32,8 +32,12 @@ duplex_host_height(void) {
 
 bool
 duplex_host_has_video(void) {
-    /* DXGI / Media Foundation encoder WIP — control path works first */
+#ifdef HAVE_DUPLEX_VIDEO
+    /* Actual header flags come from DXGI + encoder init in reverse_host.c */
+    return true;
+#else
     return false;
+#endif
 }
 
 bool

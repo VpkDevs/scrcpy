@@ -1,6 +1,6 @@
 /*
  * sc-reverse-host — PC side of duplex mirroring (experimental).
- * Listens on loopback, sends stream_caps, applies control messages from Android.
+ * Listens on loopback, sends stream_caps, streams H.264 (optional), control recv.
  */
 
 #include "sc_duplex_proto.h"
@@ -19,6 +19,11 @@ typedef SOCKET sc_sock_t;
 # define SC_SOCK_INVALID INVALID_SOCKET
 # define sc_sock_close closesocket
 # define sc_sock_errno WSAGetLastError()
+# ifdef HAVE_DUPLEX_VIDEO
+#  include <windows.h>
+#  include "duplex_capture.h"
+#  include "duplex_encode.h"
+# endif
 #else
 # include <arpa/inet.h>
 # include <netinet/in.h>
@@ -67,6 +72,20 @@ write_full(sc_sock_t s, const void *buf, size_t len) {
         off += (size_t) r;
     }
     return 0;
+}
+
+static bool
+send_framed(sc_sock_t s, uint32_t type, const void *payload, uint32_t plen) {
+    uint8_t fh[8];
+    sc_duplex_write_u32(fh, type);
+    sc_duplex_write_u32(fh + 4, plen);
+    if (write_full(s, fh, sizeof fh)) {
+        return false;
+    }
+    if (plen && payload && write_full(s, payload, plen)) {
+        return false;
+    }
+    return true;
 }
 
 static bool
@@ -119,13 +138,81 @@ handle_control(sc_sock_t s) {
             ok = duplex_apply_wheel(payload, plen);
             break;
         default:
-            /* ignore unknown */
             break;
     }
 
     free(payload);
     return ok;
 }
+
+#ifdef _WIN32
+# ifdef HAVE_DUPLEX_VIDEO
+
+typedef struct {
+    sc_sock_t sock;
+    HANDLE stop_event;
+} duplex_video_ctx;
+
+static DWORD WINAPI
+duplex_video_thread(LPVOID param) {
+    duplex_video_ctx *v = (duplex_video_ctx *) param;
+    uint32_t dw = duplex_dxgi_width();
+    uint32_t dh = duplex_dxgi_height();
+    size_t bsz = (size_t) dw * (size_t) dh * 4;
+    uint8_t *bgra = malloc(bsz);
+    if (!bgra) {
+        fprintf(stderr, "sc-reverse-host: OOM BGRA buffer\n");
+        return 1;
+    }
+
+    struct duplex_encoder *enc =
+        duplex_encoder_open((int) dw, (int) dh);
+    if (!enc) {
+        fprintf(stderr, "sc-reverse-host: encoder init failed\n");
+        free(bgra);
+        return 1;
+    }
+
+    const uint8_t *ex = NULL;
+    size_t exlen = 0;
+    if (duplex_encoder_extradata(enc, &ex, &exlen)) {
+        if (!send_framed(v->sock, SC_DUPLEX_MSG_VIDEO_CODEC_CONFIG, ex,
+                         (uint32_t) exlen)) {
+            fprintf(stderr, "sc-reverse-host: codec config send failed\n");
+        }
+    }
+
+    for (;;) {
+        if (WaitForSingleObject(v->stop_event, 0) == WAIT_OBJECT_0) {
+            break;
+        }
+
+        if (!duplex_dxgi_grab_frame(bgra, bsz)) {
+            Sleep(12);
+            continue;
+        }
+
+        bool key;
+        const uint8_t *pkt;
+        size_t pkt_len;
+
+        while (duplex_encoder_encode(enc, bgra, &key, &pkt, &pkt_len)) {
+            if (!send_framed(v->sock, SC_DUPLEX_MSG_VIDEO_NAL, pkt,
+                             (uint32_t) pkt_len)) {
+                goto finish;
+            }
+        }
+        Sleep(20);
+    }
+
+finish:
+    duplex_encoder_close(enc);
+    free(bgra);
+    return 0;
+}
+
+# endif /* HAVE_DUPLEX_VIDEO */
+#endif /* _WIN32 */
 
 static void
 usage(const char *argv0) {
@@ -202,6 +289,85 @@ main(int argc, char **argv) {
             break;
         }
 
+#ifdef _WIN32
+# ifdef HAVE_DUPLEX_VIDEO
+        bool video_ok = duplex_dxgi_init();
+        uint32_t hdr_w;
+        uint32_t hdr_h;
+        uint32_t flags = 0;
+
+        if (video_ok) {
+            hdr_w = duplex_dxgi_width() & ~1u;
+            hdr_h = duplex_dxgi_height() & ~1u;
+            flags = SC_DUPLEX_FLAG_HOST_HAS_VIDEO;
+        } else {
+            hdr_w = duplex_host_width();
+            hdr_h = duplex_host_height();
+        }
+
+        if (!send_header(s, hdr_w, hdr_h, flags)) {
+            if (video_ok) {
+                duplex_dxgi_shutdown();
+            }
+            sc_sock_close(s);
+            continue;
+        }
+
+        HANDLE stop_event = NULL;
+        HANDLE video_thr = NULL;
+        duplex_video_ctx *vctx = NULL;
+
+        if (video_ok) {
+            vctx = malloc(sizeof(*vctx));
+            if (!vctx) {
+                duplex_dxgi_shutdown();
+                sc_sock_close(s);
+                continue;
+            }
+            stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+            if (!stop_event) {
+                free(vctx);
+                duplex_dxgi_shutdown();
+                sc_sock_close(s);
+                continue;
+            }
+            vctx->sock = s;
+            vctx->stop_event = stop_event;
+
+            video_thr = CreateThread(NULL, 0, duplex_video_thread, vctx, 0,
+                                     NULL);
+            if (!video_thr) {
+                CloseHandle(stop_event);
+                free(vctx);
+                duplex_dxgi_shutdown();
+                sc_sock_close(s);
+                continue;
+            }
+        }
+
+        while (handle_control(s)) {
+        }
+
+        if (stop_event) {
+            SetEvent(stop_event);
+        }
+        if (video_thr) {
+            WaitForSingleObject(video_thr, INFINITE);
+            CloseHandle(video_thr);
+            free(vctx);
+        }
+        if (stop_event) {
+            CloseHandle(stop_event);
+        }
+        if (video_ok) {
+            duplex_dxgi_shutdown();
+        }
+
+        sc_sock_close(s);
+        printf("sc-reverse-host: client disconnected\n");
+
+# else /* !HAVE_DUPLEX_VIDEO */
+
         uint32_t w = duplex_host_width();
         uint32_t h = duplex_host_height();
         uint32_t flags = duplex_host_has_video() ? SC_DUPLEX_FLAG_HOST_HAS_VIDEO : 0;
@@ -215,6 +381,26 @@ main(int argc, char **argv) {
 
         sc_sock_close(s);
         printf("sc-reverse-host: client disconnected\n");
+
+# endif
+
+#else /* !_WIN32 */
+
+        uint32_t w = duplex_host_width();
+        uint32_t h = duplex_host_height();
+        uint32_t flags = duplex_host_has_video() ? SC_DUPLEX_FLAG_HOST_HAS_VIDEO : 0;
+        if (!send_header(s, w, h, flags)) {
+            sc_sock_close(s);
+            continue;
+        }
+
+        while (handle_control(s)) {
+        }
+
+        sc_sock_close(s);
+        printf("sc-reverse-host: client disconnected\n");
+
+#endif
     }
 
     sc_sock_close(ls);

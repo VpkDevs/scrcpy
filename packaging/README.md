@@ -15,6 +15,11 @@ meson setup build --buildtype=release -Dcompile_duplex_host=true
 ninja -C build
 ```
 
+On **Windows**, `sc-reverse-host` needs FFmpeg development packages (e.g. MSYS2
+`mingw-w64-x86_64-ffmpeg`) so Meson can find `libavcodec`, `libavutil`, and
+`libswscale`. Without them, Meson still builds the tool **without** DXGI/H.264
+(control-only mode).
+
 Artifacts:
 
 - `build/app/scrcpy.exe` (or `scrcpy` on Unix)

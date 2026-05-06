@@ -9,15 +9,13 @@ import android.view.View;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.Socket;
 
 /**
- * Sends {@link DuplexWire#MSG_CTRL_POINTER} for normalized coordinates.
- * Full-screen video will replace this region once MediaCodec decode lands.
+ * Sends {@link DuplexWire#MSG_CTRL_POINTER} over the outbound PC stream.
  */
 public class TouchControlView extends View {
 
-    private Socket socket;
+    private OutputStream out;
     private int lastButtons;
 
     private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -33,26 +31,28 @@ public class TouchControlView extends View {
     }
 
     private void init() {
-        hintPaint.setTextSize(36f);
-        hintPaint.setColor(0xFF666666);
-        setBackgroundColor(0x22000000);
+        hintPaint.setTextSize(28f);
+        hintPaint.setColor(0x88FFFFFF);
+        setBackgroundColor(0x00000000);
     }
 
-    public void bind(Socket s) {
-        this.socket = s;
-        setVisibility(VISIBLE);
+    public void bind(OutputStream os) {
+        this.out = os;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawText("Touch here → moves PC mouse (duplex v1)", 24f,
-                getHeight() / 2f, hintPaint);
+        if (out == null) {
+            return;
+        }
+        canvas.drawText("Touch: remote desktop control", 24f, getHeight() - 48f,
+                hintPaint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (socket == null) {
+        if (out == null) {
             return false;
         }
         int action = event.getActionMasked();
@@ -75,7 +75,6 @@ public class TouchControlView extends View {
         }
 
         try {
-            OutputStream out = socket.getOutputStream();
             byte[] pl = DuplexWire.pointerPayload(0, xn, yn, buttons);
             DuplexWire.writeFramedMessage(out, DuplexWire.MSG_CTRL_POINTER, pl);
             lastButtons = buttons;
