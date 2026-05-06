@@ -1,0 +1,27 @@
+THIRD-PARTY NOTICES (template for duplex fork releases)
+
+This distribution is derived from scrcpy (https://github.com/Genymobile/scrcpy)
+and may include additional components. Replace bracketed sections before
+shipping binaries.
+
+---
+scrcpy / Genymobile / Romain Vimont
+  License: Apache License 2.0
+  Source: https://github.com/Genymobile/scrcpy
+
+[SDL2]
+  License: zlib
+  https://libsdl.org/
+
+[FFmpeg components linked by your build]
+  License: LGPL/GPL per component configuration
+  https://ffmpeg.org/legal.html
+
+Duplex experimental modules (reverse-host, Android viewer)
+  SPDX-License-Identifier: Apache-2.0
+  Copyright: contributors to your fork
+
+---
+
+End of template. Add every linked native library and Java dependency with SPDX
+identifier before public release.

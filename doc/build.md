@@ -286,3 +286,20 @@ You can then run `scrcpy`.
 ```bash
 sudo ninja -Cx uninstall  # without sudo on Windows
 ```
+
+
+## Duplex experimental host (`sc-reverse-host`)
+
+The duplex roadmap adds an optional tool that listens on loopback for the
+Android **Duplex Reverse View** app (after `adb reverse`). Enable it at setup
+time:
+
+```bash
+meson setup build -Dcompile_duplex_host=true
+ninja -C build
+```
+
+The binary is built next to the main app (path depends on the platform), e.g.
+`build/duplex/reverse-host/sc-reverse-host` or `sc-reverse-host.exe`.
+
+See [duplex-overview.md](duplex-overview.md) and [packaging/README.md](../packaging/README.md).

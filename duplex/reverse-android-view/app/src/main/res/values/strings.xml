@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Duplex Reverse View</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="status_connecting">Connecting…</string>
+</resources>

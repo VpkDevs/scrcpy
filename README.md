@@ -77,6 +77,17 @@ Note that USB debugging is not required to run scrcpy in [OTG mode](doc/otg.md).
  - [Windows](doc/windows.md) (read [how to run](doc/windows.md#run))
  - [macOS](doc/macos.md)
 
+## Duplex development (this fork)
+
+Experimental **PC ↔ phone** mirroring work lives alongside upstream scrcpy:
+
+ - [Duplex overview](doc/duplex-overview.md) — architecture map and quick start
+ - [Connectivity troubleshooting](doc/connectivity-troubleshooting.md) — USB, Wi‑Fi, firewall
+ - [Baseline release notes](RELEASE_BASELINE_DUPLEX.md) — how to tag milestones
+
+Build the optional host tool: `meson setup build -Dcompile_duplex_host=true` then
+`ninja -C build` (produces `sc-reverse-host`; see [packaging/README.md](packaging/README.md)).
+
 
 ## Must-know tips
 
@@ -153,6 +164,7 @@ documented in the following pages:
  - [Recording](doc/recording.md)
  - [Virtual display](doc/virtual-display.md)
  - [Tunnels](doc/tunnels.md)
+ - [Duplex overview](doc/duplex-overview.md) (experimental)
  - [OTG](doc/otg.md)
  - [Camera](doc/camera.md)
  - [Video4Linux](doc/v4l2.md)

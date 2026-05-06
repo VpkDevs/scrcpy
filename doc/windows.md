@@ -1,5 +1,8 @@
 # On Windows
 
+If the device does not appear or mirroring fails over USB/Wi‑Fi, see
+[connectivity-troubleshooting.md](connectivity-troubleshooting.md).
+
 ## Install
 
 ### From the official release

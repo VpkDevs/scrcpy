@@ -13,6 +13,10 @@ if get_option('compile_app')
     subdir('app')
 endif
 
+if get_option('compile_duplex_host')
+    subdir('duplex/reverse-host')
+endif
+
 if get_option('compile_server')
     subdir('server')
 endif
