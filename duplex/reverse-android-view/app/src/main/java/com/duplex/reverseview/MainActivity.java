@@ -90,6 +90,11 @@ public class MainActivity extends Activity {
             readFully(in, hdr);
 
             if (!new String(hdr, 0, 8, StandardCharsets.US_ASCII).equals("DUPLEX10")) {
+                try {
+                    s.close();
+                } catch (IOException ignored) {
+                }
+                socketRef.compareAndSet(s, null);
                 postUi(() -> status.setText(
                         "Bad magic from host (is sc-reverse-host running?)"));
                 return;
