@@ -103,7 +103,13 @@ argv_to_string(const char *const *argv, char *buf, size_t bufsize) {
 
 static void
 show_adb_installation_msg(void) {
-#ifndef _WIN32
+#ifdef _WIN32
+    LOGI("Install adb (Android platform-tools): download from "
+         "<https://developer.android.com/tools/releases/platform-tools> "
+         "and add the folder to your PATH.");
+    LOGI("Or from an elevated terminal: "
+         "winget install -e --id Google.PlatformTools");
+#else
     static const struct {
         const char *binary;
         const char *command;
@@ -590,6 +596,14 @@ sc_adb_device_check_state(struct sc_adb_device *device,
         return true;
     }
 
+    if (!strcmp("offline", state)) {
+        LOGE("Device is offline:");
+        sc_adb_devices_log(SC_LOG_LEVEL_ERROR, devices, count);
+        LOGE("Try \"adb kill-server\", reconnect the USB cable, "
+             "or toggle USB debugging off/on on the device.");
+        return false;
+    }
+
     if (!strcmp("unauthorized", state)) {
         LOGE("Device is unauthorized:");
         sc_adb_devices_log(SC_LOG_LEVEL_ERROR, devices, count);
@@ -616,6 +630,12 @@ sc_adb_select_device(struct sc_intr *intr,
 
     if (vec.size == 0) {
         LOGE("Could not find any ADB device");
+        LOGI("Enable Developer options and USB debugging: "
+             "<https://developer.android.com/studio/debug/dev-options#enable>");
+#ifdef _WIN32
+        LOGI("On Windows, install the OEM USB driver if the device only "
+             "charges when plugged in.");
+#endif
         return false;
     }
 
